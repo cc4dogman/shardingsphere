@@ -23,6 +23,7 @@ import org.apache.shardingsphere.infra.binder.statement.CommonSQLStatementContex
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
 import org.apache.shardingsphere.infra.binder.statement.dml.InsertStatementContext;
 import org.apache.shardingsphere.infra.context.ConnectionContext;
+import org.apache.shardingsphere.infra.hint.HintValueContext;
 import org.apache.shardingsphere.infra.metadata.database.schema.model.ShardingSphereSchema;
 import org.apache.shardingsphere.infra.rewrite.parameter.builder.ParameterBuilder;
 import org.apache.shardingsphere.infra.rewrite.parameter.builder.impl.GroupedParameterBuilder;
@@ -63,14 +64,16 @@ public final class SQLRewriteContext {
     private final ConnectionContext connectionContext;
     
     public SQLRewriteContext(final String databaseName, final Map<String, ShardingSphereSchema> schemas,
-                             final SQLStatementContext<?> sqlStatementContext, final String sql, final List<Object> params, final ConnectionContext connectionContext) {
+                             final SQLStatementContext<?> sqlStatementContext, final String sql, final List<Object> params, final ConnectionContext connectionContext,
+                             HintValueContext hintValueContext) {
         this.databaseName = databaseName;
         this.schemas = schemas;
         this.sqlStatementContext = sqlStatementContext;
         this.sql = sql;
         parameters = params;
         this.connectionContext = connectionContext;
-        if (!((CommonSQLStatementContext<?>) sqlStatementContext).isHintSkipSQLRewrite()) {
+        // if (!((CommonSQLStatementContext<?>) sqlStatementContext).isHintSkipSQLRewrite()) {
+        if (!hintValueContext.isSkipSQLRewrite()) {
             addSQLTokenGenerators(new DefaultTokenGeneratorBuilder(sqlStatementContext).getSQLTokenGenerators());
         }
         parameterBuilder = ((sqlStatementContext instanceof InsertStatementContext) && (null == ((InsertStatementContext) sqlStatementContext).getInsertSelectContext()))

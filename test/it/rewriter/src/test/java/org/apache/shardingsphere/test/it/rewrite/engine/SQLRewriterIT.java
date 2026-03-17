@@ -86,12 +86,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class SQLRewriterIT {
-    
+
     private final SQLParserRule sqlParserRule = new SQLParserRule(new SQLParserRuleConfiguration(true,
             DefaultSQLParserRuleConfigurationBuilder.PARSE_TREE_CACHE_OPTION, DefaultSQLParserRuleConfigurationBuilder.SQL_STATEMENT_CACHE_OPTION));
-    
+
     private final TimeServiceRule timeServiceRule = new TimeServiceRule(new TimeServiceRuleConfiguration("System", new Properties()));
-    
+
     @ParameterizedTest(name = "{0}")
     @ArgumentsSource(TestCaseArgumentsProvider.class)
     public final void assertRewrite(final SQLRewriteEngineTestParameters testParams) throws IOException, SQLException {
@@ -107,7 +107,7 @@ public abstract class SQLRewriterIT {
             count++;
         }
     }
-    
+
     private Collection<SQLRewriteUnit> createSQLRewriteUnits(final SQLRewriteEngineTestParameters testParams) throws IOException, SQLException {
         YamlRootConfiguration rootConfig = createRootConfiguration(testParams);
         DatabaseConfiguration databaseConfig = new DataSourceProvidedDatabaseConfiguration(
@@ -141,16 +141,16 @@ public abstract class SQLRewriterIT {
         SQLRewriteEntry sqlRewriteEntry = new SQLRewriteEntry(database, new ShardingSphereRuleMetaData(Collections.singleton(new SQLTranslatorRule(new SQLTranslatorRuleConfiguration()))), props);
         ConnectionContext connectionContext = mock(ConnectionContext.class);
         when(connectionContext.getCursorConnectionContext()).thenReturn(new CursorConnectionContext());
-        SQLRewriteResult sqlRewriteResult = sqlRewriteEntry.rewrite(testParams.getInputSQL(), testParams.getInputParameters(), sqlStatementContext, routeContext, connectionContext);
+        SQLRewriteResult sqlRewriteResult = sqlRewriteEntry.rewrite(testParams.getInputSQL(), testParams.getInputParameters(), sqlStatementContext, routeContext, connectionContext, queryContext.getHintValueContext());
         return sqlRewriteResult instanceof GenericSQLRewriteResult
                 ? Collections.singleton(((GenericSQLRewriteResult) sqlRewriteResult).getSqlRewriteUnit())
                 : (((RouteSQLRewriteResult) sqlRewriteResult).getSqlRewriteUnits()).values();
     }
-    
+
     private ShardingSphereMetaData createShardingSphereMetaData(final Map<String, ShardingSphereDatabase> databases) {
         return new ShardingSphereMetaData(databases, mock(ShardingSphereRuleMetaData.class), mock(ConfigurationProperties.class));
     }
-    
+
     private static Map<String, DatabaseType> createStorageTypes(final DatabaseConfiguration databaseConfig, final DatabaseType databaseType) {
         Map<String, DatabaseType> result = new LinkedHashMap<>(databaseConfig.getDataSources().size(), 1);
         for (Entry<String, DataSource> entry : databaseConfig.getDataSources().entrySet()) {
@@ -158,22 +158,22 @@ public abstract class SQLRewriterIT {
         }
         return result;
     }
-    
+
     private CursorStatementContext createCursorDefinition(final String schemaName, final Map<String, ShardingSphereDatabase> databases, final SQLStatementParserEngine sqlStatementParserEngine) {
         return (CursorStatementContext) SQLStatementContextFactory.newInstance(
                 createShardingSphereMetaData(databases), sqlStatementParserEngine.parse("CURSOR t_account_cursor FOR SELECT * FROM t_account WHERE account_id = 100", false), schemaName);
     }
-    
+
     protected abstract void mockDataSource(Map<String, DataSource> dataSources) throws SQLException;
-    
+
     protected abstract YamlRootConfiguration createRootConfiguration(SQLRewriteEngineTestParameters testParams) throws IOException;
-    
+
     protected abstract Map<String, ShardingSphereSchema> mockSchemas(String schemaName);
-    
+
     protected abstract void mockRules(Collection<ShardingSphereRule> rules, String schemaName, SQLStatement sqlStatement);
-    
+
     private static class TestCaseArgumentsProvider implements ArgumentsProvider {
-        
+
         @Override
         public Stream<? extends Arguments> provideArguments(final ExtensionContext extensionContext) {
             SQLRewriterITSettings settings = extensionContext.getRequiredTestClass().getAnnotation(SQLRewriterITSettings.class);
