@@ -17,11 +17,13 @@
 
 package org.apache.shardingsphere.infra.rewrite;
 
-import org.apache.shardingsphere.infra.binder.statement.CommonSQLStatementContext;
+//import org.apache.shardingsphere.infra.binder.statement.CommonSQLStatementContext;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.SelectStatementContext;
 import org.apache.shardingsphere.infra.config.props.ConfigurationProperties;
 import org.apache.shardingsphere.infra.context.ConnectionContext;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
+import org.apache.shardingsphere.infra.hint.HintValueContext;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.rule.ShardingSphereRuleMetaData;
 import org.apache.shardingsphere.infra.rewrite.context.SQLRewriteContext;
@@ -32,11 +34,18 @@ import org.apache.shardingsphere.infra.rewrite.engine.result.SQLRewriteResult;
 import org.apache.shardingsphere.infra.route.context.RouteContext;
 import org.apache.shardingsphere.infra.rule.ShardingSphereRule;
 import org.apache.shardingsphere.infra.util.spi.type.ordered.OrderedSPILoader;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.OwnerSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.table.SimpleTableSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.table.TableSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.SelectStatement;
+import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.dml.MySQLSelectStatement;
 import org.apache.shardingsphere.sqltranslator.rule.SQLTranslatorRule;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 /**
  * SQL rewrite entry.
@@ -61,17 +70,18 @@ public final class SQLRewriteEntry {
     
     /**
      * Rewrite.
-     * 
-     * @param sql SQL
-     * @param params SQL parameters
+     *
+     * @param sql                 SQL
+     * @param params              SQL parameters
      * @param sqlStatementContext SQL statement context
-     * @param routeContext route context
-     * @param connectionContext connection context
+     * @param routeContext        route context
+     * @param connectionContext   connection context
+     * @param hintValueContext    hintValueContext
      * @return route unit and SQL rewrite result map
      */
     public SQLRewriteResult rewrite(final String sql, final List<Object> params, final SQLStatementContext<?> sqlStatementContext,
-                                    final RouteContext routeContext, final ConnectionContext connectionContext) {
-        SQLRewriteContext sqlRewriteContext = createSQLRewriteContext(sql, params, sqlStatementContext, routeContext, connectionContext);
+                                    final RouteContext routeContext, final ConnectionContext connectionContext, final HintValueContext hintValueContext) {
+        SQLRewriteContext sqlRewriteContext = createSQLRewriteContext(sql, params, sqlStatementContext, routeContext, connectionContext, hintValueContext);
         SQLTranslatorRule rule = globalRuleMetaData.getSingleRule(SQLTranslatorRule.class);
         DatabaseType protocolType = database.getProtocolType();
         Map<String, DatabaseType> storageTypes = database.getResourceMetaData().getStorageTypes();
@@ -81,16 +91,39 @@ public final class SQLRewriteEntry {
     }
     
     private SQLRewriteContext createSQLRewriteContext(final String sql, final List<Object> params, final SQLStatementContext<?> sqlStatementContext,
-                                                      final RouteContext routeContext, final ConnectionContext connectionContext) {
-        SQLRewriteContext result = new SQLRewriteContext(database.getName(), database.getSchemas(), sqlStatementContext, sql, params, connectionContext);
-        decorate(decorators, result, routeContext);
-        result.generateSQLTokens();
+                                                      final RouteContext routeContext, final ConnectionContext connectionContext, final HintValueContext hintValueContext) {
+        SQLRewriteContext result = new SQLRewriteContext(database.getName(), database.getSchemas(), sqlStatementContext, sql, params, connectionContext, hintValueContext);
+        SQLStatement sqlStatement = result.getSqlStatementContext().getSqlStatement();
+        boolean skipRewrite = false;
+        if (sqlStatement instanceof MySQLSelectStatement) {
+            MySQLSelectStatement mySQLSelectStatement = (MySQLSelectStatement) sqlStatement;
+            TableSegment from = mySQLSelectStatement.getFrom();
+            if (from instanceof SimpleTableSegment) {
+                // 目前仅处理简单查询
+                SimpleTableSegment simpleTableSegment = (SimpleTableSegment) from;
+                Optional<OwnerSegment> ownerSegmentOptional = simpleTableSegment.getOwner();
+                if (ownerSegmentOptional.isPresent()) {
+                    OwnerSegment ownerSegment = ownerSegmentOptional.get();
+                    String value = ownerSegment.getIdentifier().getValue();
+                    if ("INFORMATION_SCHEMA".equalsIgnoreCase(value)) {
+                        skipRewrite = true;
+                    }
+                }
+                
+            }
+        }
+        if (!skipRewrite) {
+            decorate(decorators, result, routeContext, hintValueContext);
+            result.generateSQLTokens();
+        }
         return result;
     }
     
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private void decorate(final Map<ShardingSphereRule, SQLRewriteContextDecorator> decorators, final SQLRewriteContext sqlRewriteContext, final RouteContext routeContext) {
-        if (((CommonSQLStatementContext<?>) sqlRewriteContext.getSqlStatementContext()).isHintSkipSQLRewrite()) {
+    private void decorate(final Map<ShardingSphereRule, SQLRewriteContextDecorator> decorators, final SQLRewriteContext sqlRewriteContext, final RouteContext routeContext,
+                          final HintValueContext hintValueContext) {
+        // if (((CommonSQLStatementContext<?>) sqlRewriteContext.getSqlStatementContext()).isHintSkipSQLRewrite()) {
+        if (hintValueContext.isSkipSQLRewrite()) {
             return;
         }
         for (Entry<ShardingSphereRule, SQLRewriteContextDecorator> entry : decorators.entrySet()) {
