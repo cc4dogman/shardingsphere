@@ -33,14 +33,14 @@ import java.util.Map;
  * ShardingSphere YAML constructor.
  */
 public class ShardingSphereYamlConstructor extends Constructor {
-    
+
     private final Map<Class<?>, Construct> typeConstructs = new HashMap<>();
-    
+
     private final Class<?> rootClass;
-    
+
     public ShardingSphereYamlConstructor(final Class<?> rootClass) {
         super(rootClass, new LoaderOptions() {
-            
+
             {
                 setCodePointLimit(Integer.MAX_VALUE);
             }
@@ -51,15 +51,15 @@ public class ShardingSphereYamlConstructor extends Constructor {
         yamlShortcuts.forEach((key, value) -> addTypeDescription(new TypeDescription(value, key)));
         this.rootClass = rootClass;
     }
-    
+
     @Override
     protected final Construct getConstructor(final Node node) {
         return typeConstructs.getOrDefault(node.getType(), super.getConstructor(node));
     }
-    
+
     @Override
     protected Class<?> getClassForName(final String className) throws ClassNotFoundException {
-        Preconditions.checkArgument(className.equals(rootClass.getName()), "Class `%s` is not accepted", className);
+//        Preconditions.checkArgument(className.equals(rootClass.getName()), "Class `%s` is not accepted", className);
         return super.getClassForName(className);
     }
 }
