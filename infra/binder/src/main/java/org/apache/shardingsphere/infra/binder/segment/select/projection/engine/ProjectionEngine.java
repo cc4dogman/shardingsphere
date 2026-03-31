@@ -195,6 +195,9 @@ public final class ProjectionEngine {
         for (Projection each : projections) {
             if (each instanceof ShorthandProjection) {
                 result.addAll(getSubqueryTableActualProjections(((ShorthandProjection) each).getActualColumns().values(), subqueryTableAlias));
+            } else if (each instanceof ColumnProjection) {
+                // 子查询如果有别名了就不要使用列名，否则上推后列名不正确
+                result.add(new ColumnProjection(subqueryTableAlias, each.getAlias().orElseGet(((ColumnProjection) each)::getName), null));
             } else if (!(each instanceof DerivedProjection)) {
                 result.add(each.cloneWithOwner(subqueryTableAlias));
             }
